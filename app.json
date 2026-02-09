@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "FastHub Delivery",
+    "slug": "fasthub-food-delivery",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#00CCBC",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fasthub.delivery"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#00CCBC"
+      },
+      "package": "com.fasthub.delivery"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fasthub-food-delivery"
+      }
+    }
+  }
+}
