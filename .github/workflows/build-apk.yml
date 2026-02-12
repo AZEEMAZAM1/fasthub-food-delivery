@@ -32,6 +32,47 @@ jobs:
         working-directory: FastHubDelivery
         run: npm install
 
+      - name: Generate release keystore
+        working-directory: FastHubDelivery/android/app
+        run: |
+          keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias fasthub-key -storepass fasthub123 -keypass fasthub123 -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
+
+      - name: Configure release signing in build.gradle
+        working-directory: FastHubDelivery/android/app
+        run: |
+          python3 << 'EOF'
+          import re
+
+          with open('build.gradle', 'r') as f:
+              content = f.read()
+
+          signing_config = """
+    signingConfigs {
+        release {
+            storeFile file("release-key.jks")
+            storePassword "fasthub123"
+            keyAlias "fasthub-key"
+            keyPassword "fasthub123"
+        }
+    }
+"""
+
+          content = content.replace(
+              'buildTypes {',
+              signing_config + '    buildTypes {'
+          )
+
+          content = content.replace(
+              'signingConfig signingConfigs.debug',
+              'signingConfig signingConfigs.release'
+          )
+
+          with open('build.gradle', 'w') as f:
+              f.write(content)
+
+          print("build.gradle updated with release signing config")
+          EOF
+
       - name: Build Android AAB
         working-directory: FastHubDelivery/android
         run: |
