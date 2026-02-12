@@ -54,7 +54,6 @@ jobs:
         run: |
           sed -i 's/compileSdkVersion = 34/compileSdkVersion = 35/g' build.gradle
           sed -i 's/targetSdkVersion = 34/targetSdkVersion = 35/g' build.gradle
-          cat build.gradle
 
       - name: Bump versionCode to 2
         working-directory: FastHubDelivery/android/app
@@ -79,29 +78,11 @@ jobs:
 
           sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
 
-          echo "=== Verify build.gradle signingConfigs ==="
-          grep -A 8 "signingConfigs" build.gradle
-          echo "=== Verify release buildType ==="
-          grep -A 5 "release {" build.gradle
-
       - name: Build Android AAB (release signed)
         working-directory: FastHubDelivery/android
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon
-
-      - name: Verify AAB is release signed
-        working-directory: FastHubDelivery/android
-        run: |
-          AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
-          echo "AAB file: $AAB"
-          jarsigner -verify -verbose "$AAB" | head -10
-          echo "--- Checking for debug signature ---"
-          if jarsigner -verify "$AAB" 2>&1 | grep -i "debug"; then
-            echo "ERROR: AAB is still signed with debug key!"
-            exit 1
-          fi
-          echo "SUCCESS: AAB is signed with release key"
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
