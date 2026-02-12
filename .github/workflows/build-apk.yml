@@ -34,23 +34,51 @@ jobs:
 
       - name: Generate release keystore
         working-directory: FastHubDelivery/android/app
-        run: keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias fasthub-key -storepass fasthub123 -keypass fasthub123 -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
+        run: |
+          keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
+            -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
 
-      - name: Build Android AAB
+      - name: Configure release signing in build.gradle
+        working-directory: FastHubDelivery/android/app
+        run: |
+          # Add signingConfigs block and set release buildType to use it
+          sed -i '/android {/a\
+              signingConfigs {\
+                  release {\
+                      storeFile file("release-key.jks")\
+                      storePassword "fasthub123"\
+                      keyAlias "fasthub-key"\
+                      keyPassword "fasthub123"\
+                  }\
+              }' build.gradle
+
+          # Replace debug signing in release buildType with release signing
+          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
+
+          echo "=== Verify build.gradle signingConfigs ==="
+          grep -A 8 "signingConfigs" build.gradle
+          echo "=== Verify release buildType ==="
+          grep -A 5 "release {" build.gradle
+
+      - name: Build Android AAB (release signed)
         working-directory: FastHubDelivery/android
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon
 
-      - name: Re-sign AAB with release keystore
+      - name: Verify AAB is release signed
         working-directory: FastHubDelivery/android
         run: |
           AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -1)
-          echo "Found: $AAB"
-          zip -d "$AAB" "META-INF/*" || true
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore app/release-key.jks -storepass fasthub123 -keypass fasthub123 "$AAB" fasthub-key
-          jarsigner -verify -verbose "$AAB" | head -5
-          echo "Done - AAB signed with release key"
+          echo "AAB file: $AAB"
+          jarsigner -verify -verbose "$AAB" | head -10
+          echo "--- Checking for debug signature ---"
+          if jarsigner -verify "$AAB" 2>&1 | grep -i "debug"; then
+            echo "ERROR: AAB is still signed with debug key!"
+            exit 1
+          fi
+          echo "SUCCESS: AAB is signed with release key"
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
