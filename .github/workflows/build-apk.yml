@@ -32,12 +32,35 @@ jobs:
         working-directory: FastHubDelivery
         run: npm install
 
-      - name: Generate release keystore
+      - name: Decode or generate release keystore
         working-directory: FastHubDelivery/android/app
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
-          keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
-            -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
-            -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "Using keystore from GitHub Secrets"
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > release-key.jks
+          else
+            echo "No secret found — generating new keystore (first run)"
+            keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
+              -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
+            echo ""
+            echo "========================================"
+            echo "IMPORTANT: Save this keystore to GitHub Secrets!"
+            echo "Run: base64 release-key.jks | pbcopy"
+            echo "Then add as RELEASE_KEYSTORE_BASE64 secret"
+            echo "========================================"
+          fi
+          echo ""
+          echo "=== Upload Key SHA1 Fingerprint ==="
+          keytool -list -v -keystore release-key.jks -alias fasthub-key -storepass fasthub123 | grep SHA1
+          echo "=================================="
+          echo ""
+          echo "=== Base64 keystore (save to secrets) ==="
+          base64 -w 0 release-key.jks
+          echo ""
+          echo "========================================"
 
       - name: Update targetSdkVersion and compileSdkVersion to 35
         working-directory: FastHubDelivery/android/app
@@ -46,8 +69,6 @@ jobs:
           sed -i 's/targetSdkVersion = 34/targetSdkVersion = 35/g' build.gradle
           sed -i 's/compileSdk = 34/compileSdk = 35/g' build.gradle
           sed -i 's/targetSdk = 34/targetSdk = 35/g' build.gradle
-          echo "=== Verify SDK versions ==="
-          grep -i "compileSdk\|targetSdk" build.gradle
 
       - name: Update compileSdkVersion in root build.gradle
         working-directory: FastHubDelivery/android
@@ -60,8 +81,6 @@ jobs:
         run: |
           sed -i 's/versionCode 1/versionCode 2/g' build.gradle
           sed -i 's/versionName "1.0"/versionName "1.1"/g' build.gradle
-          echo "=== Verify version ==="
-          grep -i "versionCode\|versionName" build.gradle
 
       - name: Configure release signing in build.gradle
         working-directory: FastHubDelivery/android/app
@@ -75,7 +94,6 @@ jobs:
                       keyPassword "fasthub123"\
                   }\
               }' build.gradle
-
           sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
 
       - name: Build Android AAB (release signed)
