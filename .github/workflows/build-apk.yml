@@ -34,44 +34,42 @@ jobs:
 
       - name: Generate release keystore
         working-directory: FastHubDelivery/android/app
+        run: keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias fasthub-key -storepass fasthub123 -keypass fasthub123 -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
+
+      - name: Add signing config to gradle.properties
+        working-directory: FastHubDelivery/android
         run: |
-          keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias fasthub-key -storepass fasthub123 -keypass fasthub123 -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
+          echo "MYAPP_RELEASE_STORE_FILE=release-key.jks" >> gradle.properties
+          echo "MYAPP_RELEASE_KEY_ALIAS=fasthub-key" >> gradle.properties
+          echo "MYAPP_RELEASE_STORE_PASSWORD=fasthub123" >> gradle.properties
+          echo "MYAPP_RELEASE_KEY_PASSWORD=fasthub123" >> gradle.properties
 
-      - name: Configure release signing in build.gradle
-        working-directory: FastHubDelivery/android/app
+      - name: Write signing config script
         run: |
-          python3 << 'EOF'
-          import re
+          cat > /tmp/fix_gradle.js << 'SCRIPT'
+          const fs = require("fs");
+          const path = "FastHubDelivery/android/app/build.gradle";
+          let content = fs.readFileSync(path, "utf8");
+          const signingBlock = [
+            "    signingConfigs {",
+            "        release {",
+            "            if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {",
+            "                storeFile file(MYAPP_RELEASE_STORE_FILE)",
+            "                storePassword MYAPP_RELEASE_STORE_PASSWORD",
+            "                keyAlias MYAPP_RELEASE_KEY_ALIAS",
+            "                keyPassword MYAPP_RELEASE_KEY_PASSWORD",
+            "            }",
+            "        }",
+            "    }"
+          ].join("\n");
+          content = content.replace("buildTypes {", signingBlock + "\n    buildTypes {");
+          content = content.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release");
+          fs.writeFileSync(path, content);
+          console.log("build.gradle updated with release signing");
+          SCRIPT
 
-          with open('build.gradle', 'r') as f:
-              content = f.read()
-
-          signing_config = """
-    signingConfigs {
-        release {
-            storeFile file("release-key.jks")
-            storePassword "fasthub123"
-            keyAlias "fasthub-key"
-            keyPassword "fasthub123"
-        }
-    }
-"""
-
-          content = content.replace(
-              'buildTypes {',
-              signing_config + '    buildTypes {'
-          )
-
-          content = content.replace(
-              'signingConfig signingConfigs.debug',
-              'signingConfig signingConfigs.release'
-          )
-
-          with open('build.gradle', 'w') as f:
-              f.write(content)
-
-          print("build.gradle updated with release signing config")
-          EOF
+      - name: Apply signing config
+        run: node /tmp/fix_gradle.js
 
       - name: Build Android AAB
         working-directory: FastHubDelivery/android
