@@ -32,20 +32,12 @@ jobs:
         working-directory: FastHubDelivery
         run: npm install
 
-      - name: Decode or generate release keystore
+      - name: Generate release keystore
         working-directory: FastHubDelivery/android/app
-        env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
-            echo "Using keystore from GitHub Secrets"
-            echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > release-key.jks
-          else
-            echo "No secret found - generating new keystore (first run)"
-            keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
-              -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
-              -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
-          fi
+          keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
+            -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
           echo ""
           echo "=== Upload Key SHA1 Fingerprint ==="
           keytool -list -v -keystore release-key.jks -alias fasthub-key -storepass fasthub123 | grep SHA1
@@ -53,7 +45,7 @@ jobs:
           echo ""
           echo "=== Exporting PEM certificate for Play Console ==="
           keytool -export -rfc -keystore release-key.jks -alias fasthub-key -storepass fasthub123 -file upload_certificate.pem
-          echo "PEM file created successfully"
+          echo "PEM file created:"
           cat upload_certificate.pem
           cp upload_certificate.pem $GITHUB_WORKSPACE/upload_certificate.pem
 
