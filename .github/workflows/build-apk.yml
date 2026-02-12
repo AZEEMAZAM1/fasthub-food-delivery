@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android AAB
 
 on:
   workflow_dispatch:
@@ -32,14 +32,14 @@ jobs:
         working-directory: FastHubDelivery
         run: npm install
 
-      - name: Build Android APK
+      - name: Build Android AAB
         working-directory: FastHubDelivery/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew bundleRelease --no-daemon
 
-      - name: Upload APK
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: FastHub-Delivery-APK
-          path: FastHubDelivery/android/app/build/outputs/apk/release/*.apk
+          name: FastHub-Delivery-AAB
+          path: FastHubDelivery/android/app/build/outputs/bundle/release/*.aab
