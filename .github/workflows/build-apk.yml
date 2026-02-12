@@ -41,26 +41,21 @@ jobs:
             echo "Using keystore from GitHub Secrets"
             echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > release-key.jks
           else
-            echo "No secret found — generating new keystore (first run)"
+            echo "No secret found - generating new keystore (first run)"
             keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
               -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
               -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
-            echo ""
-            echo "========================================"
-            echo "IMPORTANT: Save this keystore to GitHub Secrets!"
-            echo "Run: base64 release-key.jks | pbcopy"
-            echo "Then add as RELEASE_KEYSTORE_BASE64 secret"
-            echo "========================================"
           fi
           echo ""
           echo "=== Upload Key SHA1 Fingerprint ==="
           keytool -list -v -keystore release-key.jks -alias fasthub-key -storepass fasthub123 | grep SHA1
           echo "=================================="
           echo ""
-          echo "=== Base64 keystore (save to secrets) ==="
-          base64 -w 0 release-key.jks
-          echo ""
-          echo "========================================"
+          echo "=== Exporting PEM certificate for Play Console ==="
+          keytool -export -rfc -keystore release-key.jks -alias fasthub-key -storepass fasthub123 -file upload_certificate.pem
+          echo "PEM file created successfully"
+          cat upload_certificate.pem
+          cp upload_certificate.pem $GITHUB_WORKSPACE/upload_certificate.pem
 
       - name: Update targetSdkVersion and compileSdkVersion to 35
         working-directory: FastHubDelivery/android/app
@@ -107,3 +102,9 @@ jobs:
         with:
           name: FastHub-Delivery-AAB
           path: FastHubDelivery/android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload PEM certificate
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-certificate-pem
+          path: upload_certificate.pem
