@@ -25,78 +25,86 @@ jobs:
 
       - name: Create React Native project
         run: |
-          npx react-native@0.73.6 init FastHubDelivery --version 0.73.6 --skip-git-init --skip-install
-          cp App.js FastHubDelivery/App.tsx
+          npx react-native@0.73.6 init FastHubFoodApp --version 0.73.6 --skip-git-init --skip-install
+          cp App.js FastHubFoodApp/App.tsx
 
-      - name: Install base dependencies
-        working-directory: FastHubDelivery
+      - name: Update package name
+        working-directory: FastHubFoodApp
+        run: |
+          # Update Android package name to com.fasthub.fooddeliveryapp
+          sed -i 's/com.fasthubfoodapp/com.fasthub.fooddeliveryapp/g' android/app/build.gradle
+          sed -i 's/com.fasthubfoodapp/com.fasthub.fooddeliveryapp/g' android/app/src/main/AndroidManifest.xml
+          
+          # Create proper directory structure for new package
+          mkdir -p android/app/src/main/java/com/fasthub/fooddeliveryapp
+          
+          # Move MainActivity and MainApplication
+          if [ -f android/app/src/main/java/com/fasthubfoodapp/MainActivity.kt ]; then
+            sed -i 's/package com.fasthubfoodapp/package com.fasthub.fooddeliveryapp/g' android/app/src/main/java/com/fasthubfoodapp/MainActivity.kt
+            mv android/app/src/main/java/com/fasthubfoodapp/MainActivity.kt android/app/src/main/java/com/fasthub/fooddeliveryapp/
+          fi
+          if [ -f android/app/src/main/java/com/fasthubfoodapp/MainApplication.kt ]; then
+            sed -i 's/package com.fasthubfoodapp/package com.fasthub.fooddeliveryapp/g' android/app/src/main/java/com/fasthubfoodapp/MainApplication.kt
+            mv android/app/src/main/java/com/fasthubfoodapp/MainApplication.kt android/app/src/main/java/com/fasthub/fooddeliveryapp/
+          fi
+          
+          # Also handle Java files if they exist
+          if [ -f android/app/src/main/java/com/fasthubfoodapp/MainActivity.java ]; then
+            sed -i 's/package com.fasthubfoodapp/package com.fasthub.fooddeliveryapp/g' android/app/src/main/java/com/fasthubfoodapp/MainActivity.java
+            mv android/app/src/main/java/com/fasthubfoodapp/MainActivity.java android/app/src/main/java/com/fasthub/fooddeliveryapp/
+          fi
+          if [ -f android/app/src/main/java/com/fasthubfoodapp/MainApplication.java ]; then
+            sed -i 's/package com.fasthubfoodapp/package com.fasthub.fooddeliveryapp/g' android/app/src/main/java/com/fasthubfoodapp/MainApplication.java
+            mv android/app/src/main/java/com/fasthubfoodapp/MainApplication.java android/app/src/main/java/com/fasthub/fooddeliveryapp/
+          fi
+          
+          # Update app name in strings.xml
+          sed -i 's/<string name="app_name">.*<\/string>/<string name="app_name">FastHub Food Delivery<\/string>/g' android/app/src/main/res/values/strings.xml
+
+      - name: Install dependencies
+        working-directory: FastHubFoodApp
         run: npm install
 
       - name: Generate release keystore
-        working-directory: FastHubDelivery/android/app
+        working-directory: FastHubFoodApp/android/app
         run: |
-          keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
-            -alias fasthub-key -storepass fasthub123 -keypass fasthub123 \
+          keytool -genkeypair -v \
+            -keystore release.keystore \
+            -alias fasthub-key \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass fasthub123 -keypass fasthub123 \
             -dname "CN=FastHub, OU=Dev, O=FastHub, L=London, ST=England, C=GB"
-          echo ""
-          echo "=== Upload Key SHA1 Fingerprint ==="
-          keytool -list -v -keystore release-key.jks -alias fasthub-key -storepass fasthub123 | grep SHA1
-          echo "=================================="
-          echo ""
-          echo "=== Exporting PEM certificate for Play Console ==="
-          keytool -export -rfc -keystore release-key.jks -alias fasthub-key -storepass fasthub123 -file upload_certificate.pem
-          echo "PEM file created:"
-          cat upload_certificate.pem
-          cp upload_certificate.pem $GITHUB_WORKSPACE/upload_certificate.pem
 
-      - name: Update targetSdkVersion and compileSdkVersion to 35
-        working-directory: FastHubDelivery/android/app
+      - name: Configure signing
+        working-directory: FastHubFoodApp/android
         run: |
-          sed -i 's/compileSdkVersion = 34/compileSdkVersion = 35/g' build.gradle
-          sed -i 's/targetSdkVersion = 34/targetSdkVersion = 35/g' build.gradle
-          sed -i 's/compileSdk = 34/compileSdk = 35/g' build.gradle
-          sed -i 's/targetSdk = 34/targetSdk = 35/g' build.gradle
+          cat >> app/build.gradle << 'SIGNING'
+          
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file('release.keystore')
+                      storePassword 'fasthub123'
+                      keyAlias 'fasthub-key'
+                      keyPassword 'fasthub123'
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          SIGNING
 
-      - name: Update compileSdkVersion in root build.gradle
-        working-directory: FastHubDelivery/android
-        run: |
-          sed -i 's/compileSdkVersion = 34/compileSdkVersion = 35/g' build.gradle
-          sed -i 's/targetSdkVersion = 34/targetSdkVersion = 35/g' build.gradle
-
-      - name: Bump versionCode to 3
-        working-directory: FastHubDelivery/android/app
-        run: |
-          sed -i 's/versionCode 1/versionCode 3/g' build.gradle
-          sed -i 's/versionName "1.0"/versionName "1.2"/g' build.gradle
-
-      - name: Configure release signing in build.gradle
-        working-directory: FastHubDelivery/android/app
-        run: |
-          sed -i '/android {/a\
-              signingConfigs {\
-                  release {\
-                      storeFile file("release-key.jks")\
-                      storePassword "fasthub123"\
-                      keyAlias "fasthub-key"\
-                      keyPassword "fasthub123"\
-                  }\
-              }' build.gradle
-          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
-
-      - name: Build Android AAB (release signed)
-        working-directory: FastHubDelivery/android
+      - name: Build Release AAB
+        working-directory: FastHubFoodApp/android
         run: |
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon
 
-      - name: Upload AAB
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FastHub-Delivery-AAB
-          path: FastHubDelivery/android/app/build/outputs/bundle/release/*.aab
-
-      - name: Upload PEM certificate
-        uses: actions/upload-artifact@v4
-        with:
-          name: upload-certificate-pem
-          path: upload_certificate.pem
+          name: app-release-aab
+          path: FastHubFoodApp/android/app/build/outputs/bundle/release/app-release.aab
